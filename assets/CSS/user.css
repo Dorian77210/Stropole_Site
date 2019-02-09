@@ -1,0 +1,61 @@
+article h3{
+
+	color: orange;
+	text-align: center;
+}
+
+.input{
+
+	width: 80%;
+	text-align: center;
+}
+
+/*informations sur l'utilisateur*/
+.informations li span{
+
+	color: #bf3132;
+}
+.informations li{
+
+	text-align: center;
+}
+
+.user_page{
+
+	display: flex;
+	justify-content: space-around;
+}
+
+.user_page div{
+
+	padding: 2%;
+	min-height: 50px;
+	border: 4px solid blue;
+	border-radius: 10px;
+}
+
+table{
+
+	margin-left: auto;
+	margin-right: auto;
+}
+table th{
+
+	border: 1px solid black;
+}
+
+table td{
+
+	text-align: center;
+	border: 1px solid black;
+}
+
+.good{
+
+	background: #6fe533;
+}
+
+.not_good{
+
+	background: #fc3132;
+}

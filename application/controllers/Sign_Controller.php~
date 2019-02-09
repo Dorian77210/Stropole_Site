@@ -1,0 +1,211 @@
+<?php
+
+class Sign_Controller extends CI_Controller{
+
+	public function __construct(){
+
+		parent::__construct();
+		$this->load->library('form_validation');
+		$this->load->helper('date');
+		$this->load->model('User_Model');
+	}
+
+	##############################
+	#fonction qui permets aux 
+	#utilisateurs de s'inscrire sur 
+	#le site
+	#@Param : aucun
+	public function inscription(){
+
+		//regles pour le nom de famille
+		$this->form_validation->set_rules('lastname', 'Nom de famille', 'required|trim', array(
+			'required'		=>		'Vous n\'avez pas spécifié votre nom de famille.'
+			)
+		);
+
+		//regles pour le prenom
+		$this->form_validation->set_rules('firstname', 'Prenom', 'required|trim', array(
+			'required'		=>		'Vous n\'avez pas spécifié votre prénom.'
+			)
+		);
+
+		//regles pour l'email
+		$this->form_validation->set_rules('email', 'Email', 'required|trim|valid_email', array(
+			'required'		=>		'Vous n\'avez pas spécifié votre adresse mail.',
+			'valid_email'	=>		'Votre email ne respecte pas la forme conventionnelle.'
+			)
+		);
+
+		//regles pour le login
+		$this->form_validation->set_rules('login', 'Login', 'required|trim|max_length[40]', array(
+			'required'		=>		'Vous n\'avez pas spécifié votre login.',
+			'max_lenght'	=>		'Vous avez dépassé la limite de caractères qui s\'élève à 40 caractères.'
+			)
+		);
+
+		//regles pour le mot de passe
+		$this->form_validation->set_rules('password', 'Mot de passe', 'required|trim|min_length[6]', array(
+			'required'		=>		'Vous n\'avez pas spécifié de mot de passe pour votre compte.',
+			'min_length'	=>		'Votre mot de passe n\'excède pas 6 caractères, veuillez le sécuriser.'
+			)
+		);
+
+		//regles pour la validation du mot de passe
+		$this->form_validation->set_rules('password_confirmation', 'Confirmation de votre mot de passe', 'required|trim', array(
+			'required'		=>		'Vous n\'avez pas confirmé votre mot de passe.'
+			)
+		);
+		if(!$this->form_validation->run()) $this->load->view('Inscription_View');
+		else{
+
+			//on verifie d'abords que les mots de passe donnes sont les memes
+			$password = $this->input->post('password');
+			$password_confirmation = $this->input->post('password_confirmation');
+
+			if($password !== $password_confirmation){
+				$this->load->view('Inscription_View', array('message' => 'Les mots de passes ne coincident pas.'));
+				return;
+			}
+
+			//on extrait le reste des donnees
+			$login = $this->input->post('login');
+			$email = $this->input->post('email');
+			$firstname = $this->input->post('firstname');
+			$lastname = $this->input->post('lastname');
+			$avatar = null;
+			//on verifie que le login donne dans le formulaire est unique
+			if(!$this->User_Model->is_login_unique($login)){
+				$this->load->view('Inscription_View', array('message' => 'Le login que vous avez renseigné n\'est plus disponible.'));
+				return;
+			}
+
+			//on inscrit le nouvel utilisateur
+			if(!$this->User_Model->create_user(
+				array(
+					'login'			=>		$login,
+					'password'		=>		password_hash($password, PASSWORD_DEFAULT),
+					'firstname'		=>		ucfirst(strtolower($firstname)),
+					'lastname'		=>		ucfirst(strtolower($lastname)),
+					'email'			=>		$email,
+					'dateCreation'	=>		mdate('%Y-%m-%d'),
+					'image'			=>		$avatar
+					)
+				)
+			){
+				$this->load->view('Inscription_View', array('message' => 'Erreur lors de la création de votre compte. Veuillez réassayer ultérieurement.'));
+				return;
+			}
+
+			//on redirige l'utilisateur sur le menu d'accueil avec un message de confirmation de creation de son compte
+			redirect('home/0');
+		}
+	}
+
+	############################
+	#fonction qui permets aux 
+	#utilisateurs de se connecter
+	#@Param : aucun
+	public function connection(){
+
+		//regles pour le login 
+		$this->form_validation->set_rules('login', 'Login', 'required|trim', array(
+			'required'		=>		'Vous n\'avez pas spécifié votre login.'
+			)
+		);
+
+		//regles pour le mot de passe
+		$this->form_validation->set_rules('password', 'Mot de passe', 'required|trim', array(
+			'required'		=>		'Vous n\'avez pas spécifié votre mot de passe.'
+			)
+		);
+
+		if(!$this->form_validation->run()) $this->load->view('Connexion_View');
+		else{
+
+			//extraction des donnees
+			$login = $this->input->post('login');
+			$password = $this->input->post('password');
+			//recuperation de l'utilisateur
+			$user = $this->User_Model->get_user_by_login($login);
+			//on verifie que l'utilisateur nous donne un login qui existe
+			if(!$user){
+				$this->load->view('Connexion_View', array('message' => 'Le login que vous avez spécifié n\'existe pas.'));
+				return;
+			}
+
+			//verification de la coherence du mot de passe donne
+			if(!$this->User_Model->is_password_correct($login, $password)){
+				$this->load->view('Connexion_View', array('message' => 'Le mot de passe n\'est pas correct'));
+				return;
+			}
+
+			//creation de la session
+			$this->session->set_userdata(
+				array(
+					 'login'		=>		$login,
+					 'firstname'	=>		$user->firstname,
+					 'lastname'		=>		$user->lastname,
+					 'dateCreation'	=>		$user->dateCreation,
+					 'email'		=>		$user->email
+				)
+			);
+			//redirection
+			redirect('user/home');
+		}
+	}
+
+	#####################################
+	#fonction qui permets a un utilisateur 
+	#ayant oublie son mot de passe d'en
+	#recuperer un nouveau
+	#@Param : aucun
+	public function password_forgotten(){
+
+		//chargement du helper pour generer un password
+		$this->load->helper('random_password');
+		//regles pour le login
+		$this->form_validation->set_rules('login', 'Login', 'trim|required', array(
+			'required'		=>		'Veuillez renseigner votre login afin de récupérer un nouveau mot de passe.'
+			)
+		);
+		if(!$this->form_validation->run()) $this->load->view('Password_Forgotten_View');
+		else{
+
+			//on recupere l'utilisateur grace a son login
+			$login = $this->input->post('login');
+			$user = $this->User_Model->get_user_by_login($login);
+			if(!$user){
+
+				$this->load->view('Error_View', array('message' => 'Le login renseigné n\'existe pas.'));
+				return;
+			}
+
+			//generation du mot de passe aleatoire
+			$password = random_password();
+			//update du mot de passe
+			if(!$this->User_Model->update_account('password', password_hash($password, PASSWORD_DEFAULT), $login)){
+
+				$this->load->view('Error_View', array('message' => 'Erreur lors de la mise à jour de votre nouveau mot de passe. Veuillez réessayer ultérieurement.'));
+				return;
+			}
+
+			ini_set( 'display_errors', 1 );
+ 			error_reporting( E_ALL );
+
+ 			//configuration de l'email
+ 			$from = "dorian.terb@gmail.com";
+ 			$to = $user->email;
+ 			$subject = "Vérification PHP mail";
+ 			$message = "Votre nouveau mot de passe est : ".$password.". Il est conseillé de modifier votre mot de passe directement depuis la rubrique 'Mes infos' de votre compte.";
+ 			$headers = "From:" . $from;
+ 			if(!mail($to, $subject, $message, $headers)){
+
+ 				$this->load->view('Error_View', array('message' => 'Erreur lors de l\'envoi de votre nouveau mot de passe.'));
+ 				return;
+ 			}
+			$this->load->view('Password_Forgotten_View', array('message' => 'Votre nouveau mot de passe vous a été envoyé par mail.'));
+		}
+	}
+}
+
+?>
